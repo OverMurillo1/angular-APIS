@@ -1,12 +1,15 @@
 <button (click)="createNewProduct()">Crear</button>
+<button (click)="onShowDetails('111111111')">Not found</button>
 <div class="products--grid">
   <app-product
     [product]="product"
     *ngFor="let product of products"
     (addedProduct)="onAddToShoppingCart($event)" (showProduct)="onShowDetails($event)"
   ></app-product>
+  <button type="button" (click)="loadMore()">More</button>
 </div>
 <div class="product--detail" [class.active]="showProductDetails">
+  {{ statusDetail }}
   <div *ngIf="productChosen" >
     <button (click)="toggleProductDetail()">Close</button>
     <h1>{{productChosen.title}}</h1>

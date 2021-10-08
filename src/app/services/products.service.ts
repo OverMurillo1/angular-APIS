@@ -1,5 +1,10 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
+import { retry, catchError, map } from 'rxjs/operators';
+import { throwError, zip  } from 'rxjs';
+
+import { environment } from './../../environments/environment';
+import { checkTime } from './../interceptors/time.interceptor';
 
 import { Product, CreateProductDTO, UpdateProductDTO } from './../models/product.model';
 
@@ -8,18 +13,49 @@ import { Product, CreateProductDTO, UpdateProductDTO } from './../models/product
 })
 export class ProductsService {
 
-  private apiURL = 'https://young-sands-07814.herokuapp.com/api/products'
+  private apiURL = `${environment.api_url}/api/products`;
 
   constructor(
     private http: HttpClient
   ) { }
 
-  getAllProducts() {
-    return this.http.get<Product[]>(this.apiURL);
+  getAllProducts(limit?: number, offset?:number) {
+    let params = new HttpParams();
+    if(limit && offset){
+      params = params.set('limit', limit);
+      params = params.set('offsset', offset);
+    }
+    return this.http.get<Product[]>(this.apiURL, {params, context: checkTime() })
+    .pipe(
+      retry(3),
+      map(products => products.map( item => {
+        return{
+          ...item,
+          taxes: .19*item.price
+        }
+      }))
+    );
   }
 
   getProducts(id: string){
-    return this.http.get<Product>(`${this.apiURL}/${id}`);
+    return this.http.get<Product>(`${this.apiURL}/${id}`).pipe(
+      catchError( (error: HttpErrorResponse) => {
+        if(error.status === HttpStatusCode.Conflict){
+          return throwError('Fallo en el server');
+        }if(error.status === HttpStatusCode.NotFound){
+          return throwError('Producto no existe');
+        }if(error.status === HttpStatusCode.Unauthorized){
+          return throwError('Estas autorizado');
+        }
+        return throwError('Algo salio mal');
+      })
+    )
+  }
+
+  getProductsByPage( limit: number, offset:number){
+    return this.http.get<Product[]>(`${this.apiURL}`, {
+      params: {limit, offset}
+    });
   }
 
   create(data: CreateProductDTO){
@@ -33,4 +69,12 @@ export class ProductsService {
   delete(id: string){
     return this.http.delete<boolean>(`${this.apiURL}/${id}`);
   }
+
+  fetchReadAndUpdate(id: string, dto: UpdateProductDTO){
+    return zip(
+      this.getProducts(id),
+      this.update(dto, id)
+    );
+  }
+
 }

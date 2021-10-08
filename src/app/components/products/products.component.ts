@@ -1,4 +1,6 @@
 import { Component, OnInit } from '@angular/core';
+import { switchMap } from 'rxjs/operators';
+import { zip } from 'rxjs';
 
 import { Product, CreateProductDTO, UpdateProductDTO } from '../../models/product.model';
 
@@ -27,6 +29,9 @@ export class ProductsComponent implements OnInit {
     },
     description:''
     };
+    limit = 10;
+    offset = 0;
+    statusDetail: 'loading' | 'success' | 'error'| 'init'  = 'init';
 
   constructor(
     private storeService: StoreService,
@@ -36,9 +41,10 @@ export class ProductsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.productsService.getAllProducts()
+    this.productsService.getProductsByPage(10,0)
     .subscribe(data => {
       this.products = data;
+      this.offset += this.limit;
     });
   }
 
@@ -52,10 +58,15 @@ export class ProductsComponent implements OnInit {
   }
 
   onShowDetails(id: string){
+    this.statusDetail = 'loading';
     this.productsService.getProducts(id).subscribe( data => {
       //console.log('product', data);
       this.toggleProductDetail();
       this.productChosen = data;
+      this.statusDetail = 'success';
+    }, errorMsg => {
+      window.alert(errorMsg);
+      this.statusDetail = 'error';
     })
   }
 
@@ -94,6 +105,28 @@ export class ProductsComponent implements OnInit {
         this.showProductDetails = false;
       }
     )
+  }
+
+  loadMore(){
+    this.productsService.getProductsByPage(this.limit,this.offset)
+    .subscribe(data => {
+      this.products = this.products.concat(data);
+      this.offset += this.limit;
+    });
+  }
+
+  readAndUpdate(id: string){
+    this.productsService.getProducts(id).pipe(
+      switchMap( (product) =>  this.productsService.update({title: 'Chnege'}, product.id))
+      // Podemos aqui agregar muchas cosas mas con la misma sintexis de arriba
+    ).subscribe( data => {
+      console.log(data)
+    });
+    this.productsService.fetchReadAndUpdate( id, {title: 'Nuevo'})
+    .subscribe( response => {
+      const read = response[0];
+      const update = response[1];
+    })
   }
 
 }
